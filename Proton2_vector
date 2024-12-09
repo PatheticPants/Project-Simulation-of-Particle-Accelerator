@@ -1,0 +1,104 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+class RingVectorFieldVisualization:
+    def __init__(self, r, charge_density):
+        self.k = 8.99e9
+        self.r = r
+        self.charge_density = charge_density
+        self.total_charge = 2 * np.pi * r * charge_density
+
+    def electric_field_point(self, x, y, z):
+        if abs(x) < 1e-10 and abs(y) < 1e-10:
+            Ez = (self.k * self.total_charge * z) / (2 * np.pi * (self.r**2 + z**2)**(3/2))
+            return 0, 0, Ez
+        
+        theta = np.linspace(0, 2*np.pi, 50)
+        dx = self.r * np.cos(theta) - x
+        dy = self.r * np.sin(theta) - y
+        dz = np.zeros_like(theta) - z
+        
+        r_cubed = (dx**2 + dy**2 + dz**2)**(3/2)
+        dq = self.charge_density * self.r * 2 * np.pi / len(theta)
+        
+        Ex = -np.sum(self.k * dq * dx / r_cubed)
+        Ey = -np.sum(self.k * dq * dy / r_cubed)
+        Ez = -np.sum(self.k * dq * dz / r_cubed)
+        
+        return Ex, Ey, Ez
+
+    def electric_field(self, X, Y, Z):
+        Ex = np.zeros_like(X)
+        Ey = np.zeros_like(Y)
+        Ez = np.zeros_like(Z)
+        
+        for i in range(X.shape[0]):
+            for j in range(X.shape[1]):
+                for k in range(X.shape[2]):
+                    Ex[i,j,k], Ey[i,j,k], Ez[i,j,k] = self.electric_field_point(
+                        X[i,j,k], Y[i,j,k], Z[i,j,k]
+                    )
+        
+        return Ex, Ey, Ez
+
+    def plot_vector_field(self, grid_points=8):
+        plot_size = self.r * 2
+        x = np.linspace(-plot_size, plot_size, grid_points)
+        y = np.linspace(-plot_size, plot_size, grid_points)
+        z = np.linspace(-plot_size, plot_size, grid_points)
+        X, Y, Z = np.meshgrid(x, y, z)
+
+        Ex, Ey, Ez = self.electric_field(X, Y, Z)
+        E_magnitude = np.sqrt(Ex**2 + Ey**2 + Ez**2)
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            Ex_norm = np.where(E_magnitude > 0, Ex / E_magnitude, 0)
+            Ey_norm = np.where(E_magnitude > 0, Ey / E_magnitude, 0)
+            Ez_norm = np.where(E_magnitude > 0, Ez / E_magnitude, 0)
+
+        fig = plt.figure(figsize=(12, 10))
+        ax = fig.add_subplot(111, projection='3d')
+
+        theta = np.linspace(0, 2*np.pi, 100)
+        ring_x = self.r * np.cos(theta)
+        ring_y = self.r * np.sin(theta)
+        ring_z = np.zeros_like(theta)
+        ax.plot(ring_x, ring_y, ring_z, 'r-', linewidth=2, label='Charged ring')
+
+        stride = 1
+        ax.quiver(X[::stride, ::stride, ::stride],
+                 Y[::stride, ::stride, ::stride],
+                 Z[::stride, ::stride, ::stride],
+                 Ex_norm[::stride, ::stride, ::stride],
+                 Ey_norm[::stride, ::stride, ::stride],
+                 Ez_norm[::stride, ::stride, ::stride],
+                 length=0.15,
+                 normalize=True,
+                 color='b',
+                 alpha=0.6)
+
+        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
+        mid_x = (X.max()+X.min()) * 0.5
+        mid_y = (Y.max()+Y.min()) * 0.5
+        mid_z = (Z.max()+Z.min()) * 0.5
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+        ax.set_xlabel('x (m)')
+        ax.set_ylabel('y (m)')
+        ax.set_zlabel('z (m)')
+        ax.set_title('Electric Field Vector Plot for Charged Ring')
+        ax.view_init(elev=20, azim=45)
+
+        plt.tight_layout()
+        return fig, ax
+
+if __name__ == "__main__":
+    ring_radius = 0.5
+    charge_density = 1e-6
+    
+    viz = RingVectorFieldVisualization(ring_radius, charge_density)
+    fig, ax = viz.plot_vector_field(grid_points=8)
+    plt.show()
